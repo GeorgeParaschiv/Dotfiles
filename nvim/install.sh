@@ -12,20 +12,14 @@ if ! sudo -v; then
 fi
 
 # Install Neovim if it's not already installed
-    if command -v nvim >/dev/null 2>&1; then
-        echo "✅ Neovim is already installed."
-    else
-        echo "📦 Installing Neovim..."
-        sudo add-apt-repository ppa:neovim-ppa/unstable
-        sudo apt update
-        sudo apt install -y neovim
-    fi
-
- # Backup existing config if it's not already a symlink
-    if [ -e "$NVIM_CONFIG_DIR" ] && [ ! -L "$NVIM_CONFIG_DIR" ]; then
-        echo "🗂️ Backing up existing Neovim config..."
-        mv "$NVIM_CONFIG_DIR" "${NVIM_CONFIG_DIR}.backup.$(date +%s)"
-    fi
+if command -v nvim >/dev/null 2>&1; then
+    echo "✅ Neovim is already installed."
+else
+    echo "📦 Installing Neovim..."
+    sudo add-apt-repository ppa:neovim-ppa/unstable
+    sudo apt update
+    sudo apt install -y neovim
+fi
 
 # Create parent config directory if needed
 mkdir -p "$HOME/.config"
@@ -37,7 +31,10 @@ mkdir -p "$NVIM_TARGET_DIR"
 echo "🔗 Symlinking Neovim config files (excluding install.sh)..."
 for item in "$NVIM_SOURCE_DIR"/*; do
     base_item="$(basename "$item")"
+    
+    # Skip install.sh file
     if [ "$base_item" != "install.sh" ]; then
+        # Ensure we only symlink files and directories that exist
         ln -sf "$item" "$NVIM_TARGET_DIR/$base_item"
     fi
 done
