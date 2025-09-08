@@ -26,4 +26,4 @@ fi
 
 # Symlink the tmux config
 echo "🔗 Symlinking .tmux.conf..."
-ln -sf "$DOTFILES_DIR/tmux/.tmux.conf" "$HOME/.tmux.conf"
+ln -sf "$DOTFILES_DIR/tmux/tmux.conf" "$HOME/.tmux.conf"
