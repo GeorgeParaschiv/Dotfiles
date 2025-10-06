@@ -11,5 +11,13 @@ return {
     {
         "olimorris/onedarkpro.nvim",
         priority = 1000,  -- Ensure it loads first
+    },
+
+    -- nvim-lint
+    { 
+	"mfussenegger/nvim-lint",
+  	config = function()
+    		require("config.lint").setup()
+  	end,
     }
 }
