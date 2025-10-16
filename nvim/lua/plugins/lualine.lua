@@ -1,16 +1,15 @@
+-- lua/plugins/lualine.lua
 return {
   "nvim-lualine/lualine.nvim",
   dependencies = { "nvim-tree/nvim-web-devicons" },
   opts = {
     options = {
       theme = "auto",
-      globalstatus = true, -- one statusline for the whole screen
+      globalstatus = true,
       disabled_filetypes = {
-        statusline = { "NvimTree" }, -- don't render lualine in the tree window
-        winbar     = { "NvimTree" }, -- if you use lualine winbar, skip it for tree
+        statusline = { "neo-tree" },
       },
     },
-    extensions = { "nvim-tree" }, -- lualine knows how to play nice with the tree
+    extensions = { "neo-tree" },
   },
 }
-
