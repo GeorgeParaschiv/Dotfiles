@@ -1,2 +1,4 @@
-require('lazy-setup')
-require('config')
+require('config.options')
+require('config.keymaps')
+
+require("config.lazy")

@@ -5,20 +5,18 @@ DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
 NVIM_SOURCE_DIR="$DOTFILES_DIR/nvim"
 NVIM_TARGET_DIR="$HOME/.config/nvim"
 
-# Ask for sudo permissions
-if ! sudo -v; then
-    echo "❌ This script requires sudo privileges."
-    exit 1
-fi
-
 # Install Neovim if it's not already installed
 if command -v nvim >/dev/null 2>&1; then
-    echo "✅ Neovim is already installed."
+  echo "✅ Neovim is already installed."
 else
-    echo "📦 Installing Neovim..."
-    sudo add-apt-repository ppa:neovim-ppa/unstable
-    sudo apt update
-    sudo apt install -y neovim
+  echo "📦 Installing Neovim..."
+  if ! sudo -v; then
+    echo "❌ This step needs sudo to install Neovim with apt."
+    exit 1
+  fi
+  # sudo add-apt-repository ppa:neovim-ppa/unstable
+  sudo apt update
+  sudo apt install -y neovim
 fi
 
 # Create parent config directory if needed
@@ -35,6 +33,6 @@ for item in "$NVIM_SOURCE_DIR"/*; do
     # Skip install.sh file
     if [ "$base_item" != "install.sh" ]; then
         # Ensure we only symlink files and directories that exist
-        ln -sf "$item" "$NVIM_TARGET_DIR/$base_item"
+        ln -snf "$item" "$NVIM_TARGET_DIR/$base_item"
     fi
 done
