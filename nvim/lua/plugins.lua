@@ -7,9 +7,9 @@ return {
     "nvim-lua/plenary.nvim",
     "nvim-telescope/telescope.nvim",
 
-    -- One Dark Pro colorscheme
+    -- NightFox colorscheme
     {
-        "olimorris/onedarkpro.nvim",
+        "EdenEast/nightfox.nvim",
         priority = 1000,  -- Ensure it loads first
     },
 
@@ -19,5 +19,11 @@ return {
   	config = function()
     		require("config.lint").setup()
   	end,
+    },
+
+    -- lualine (status bar)
+    {
+        'nvim-lualine/lualine.nvim',
+        dependencies = { 'nvim-tree/nvim-web-devicons' }
     }
 }
