@@ -11,6 +11,8 @@ map("n", "<leader>ln", function()
   end
 end, { desc = "Toggle hybrid line numbers on/off" })
 
+map("n", "<leader>cf", ":%y+<CR>", { desc = "Copy entire file to system clipboard (+)" })
+
 map("v", "<C-c>", function()
   vim.cmd('normal! "zy')                 -- yank selection -> "z
   local text = vim.fn.getreg("z")
