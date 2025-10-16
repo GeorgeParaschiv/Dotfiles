@@ -11,7 +11,7 @@ return {
       clickable = true,
       icons = { diagnostics = { [vim.diagnostic.severity.ERROR] = { enabled = true },
                                  [vim.diagnostic.severity.WARN]  = { enabled = true } } },
-      sidebar_filetypes = { NvimTree = true, undotree = true, ["neo-tree"] = true },
+      sidebar_filetypes = { ["neo-tree"] = true },
     })
     -- tiny, useful keys (optional)
     local map = vim.keymap.set
