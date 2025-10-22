@@ -1,38 +1,26 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-set -e
+# Install deps, install/refresh Neovim (snap), link config
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
-NVIM_SOURCE_DIR="$DOTFILES_DIR/nvim"
-NVIM_TARGET_DIR="$HOME/.config/nvim"
+NVIM_SRC="$DOTFILES_DIR/nvim"
+NVIM_DEST="$HOME/.config/nvim"
 
-# Install Neovim if it's not already installed
-if command -v nvim >/dev/null 2>&1; then
-  echo "✅ Neovim is already installed."
-else
-  echo "📦 Installing Neovim..."
-  if ! sudo -v; then
-    echo "❌ This step needs sudo to install Neovim with apt."
-    exit 1
-  fi
-  # sudo add-apt-repository ppa:neovim-ppa/unstable
-  sudo apt update
-  sudo apt install -y neovim
-fi
+sudo apt-get update -y
+sudo apt-get install -y snapd ripgrep fd-find
 
-# Create parent config directory if needed
-mkdir -p "$HOME/.config"
+mkdir -p "$HOME/.local/bin"
+command -v fdfind >/dev/null 2>&1 && ln -snf "$(command -v fdfind)" "$HOME/.local/bin/fd"
 
-# Create the target directory
-mkdir -p "$NVIM_TARGET_DIR"
+sudo snap install nvim --classic || sudo snap refresh nvim --classic
+export PATH="/snap/bin:$PATH"
 
-# Symlink everything inside nvim/ except install.sh
-echo "🔗 Symlinking Neovim config files (excluding install.sh)..."
-for item in "$NVIM_SOURCE_DIR"/*; do
-    base_item="$(basename "$item")"
-    
-    # Skip install.sh file
-    if [ "$base_item" != "install.sh" ]; then
-        # Ensure we only symlink files and directories that exist
-        ln -snf "$item" "$NVIM_TARGET_DIR/$base_item"
-    fi
+mkdir -p "$NVIM_DEST"
+shopt -s nullglob
+for item in "$NVIM_SRC"/*; do
+  base="$(basename "$item")"
+  [[ "$base" == "install.sh" ]] && continue
+  ln -snf "$item" "$NVIM_DEST/$base"
 done
+
+

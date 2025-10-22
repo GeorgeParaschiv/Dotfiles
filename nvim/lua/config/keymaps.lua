@@ -22,4 +22,4 @@ map("v", "<C-c>", function()
     vim.fn.chansend(job, text)
     vim.fn.chanclose(job, "stdin")
   end
-end, { desc = "Copy via tmux buffer" })
+end, { desc = "opy via tmux buffer" })
