@@ -9,7 +9,11 @@ return {
     },
     config = function()
       local lspconfig = require("lspconfig")
-      local capabilities = require("cmp_nvim_lsp").default_capabilities()
+      local cmp_nvim_lsp_ok, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
+      if not cmp_nvim_lsp_ok then
+        vim.notify("cmp_nvim_lsp not available. LSP capabilities may be limited.", vim.log.levels.WARN)
+      end
+      local capabilities = cmp_nvim_lsp_ok and cmp_nvim_lsp.default_capabilities() or vim.lsp.protocol.make_client_capabilities()
 
       -- de-dupe duplicate definition results
       do
@@ -33,6 +37,16 @@ return {
         end
       end
 
+      -- Check for npm availability (required for some language servers)
+      local npm_available = vim.fn.executable("npm") == 1
+      if not npm_available then
+        vim.notify(
+          "npm not found in PATH. Some language servers (vue_ls, bashls, jsonls, pyright) require npm to install.\n" ..
+          "Install Node.js and npm: https://nodejs.org/ or run: nvim/install.sh",
+          vim.log.levels.WARN
+        )
+      end
+
       require("mason").setup({})
       require("mason-lspconfig").setup({
         ensure_installed = {
@@ -40,7 +54,7 @@ return {
           "vue_ls",   -- Vue (aka Volar)
           "bashls",
           "jsonls",
-          "ts_ls",    -- TypeScript/JS
+          "tsserver",    -- TypeScript/JS
           "clangd",
           "pyright",
         },
@@ -69,8 +83,8 @@ return {
             })
           end,
 
-          ts_ls = function()
-            lspconfig.ts_ls.setup({
+          tsserver = function()
+            lspconfig.tsserver.setup({
               capabilities = capabilities,
               filetypes = { "javascript", "javascriptreact", "typescript", "typescriptreact" },
             })
