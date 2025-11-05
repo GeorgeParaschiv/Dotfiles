@@ -10,19 +10,16 @@ return {
     local action_layout = require("telescope.actions.layout")
     local utils = require("telescope.utils")
 
-    -- repo-root helper
     local function repo_root_or_cwd()
       local ok, out = pcall(utils.get_os_command_output, { "git", "rev-parse", "--show-toplevel" })
       if ok and out and out[1] and #out[1] > 0 then return out[1] end
       return vim.loop.cwd()
     end
 
-    -- common ripgrep guards
     local function common_rg_args()
       return { "--max-columns=200", "--max-columns-preview", "--max-filesize", "1M" }
     end
 
-    -- Visual selection helper (collapses whitespace/newlines)
     local function get_visual_selection()
       local _, ls, cs = unpack(vim.fn.getpos("'<"))
       local _, le, ce = unpack(vim.fn.getpos("'>"))
@@ -34,7 +31,6 @@ return {
       return table.concat(lines, " "):gsub("%s+", " ")
     end
 
-    -- Optimized pickers
     local function live_grep_git_root(opts)
       opts = opts or {}
       opts.cwd = repo_root_or_cwd()
@@ -77,23 +73,27 @@ return {
     -- Find files
     vim.keymap.set("n", "<leader>ff", function()
       builtin.find_files({ hidden = true })
-    end, { desc = "Telescope: Find files", silent = true })
+    end, { desc = "Find files", silent = true })
 
-    -- Live grep (repo root, optimized)
+    -- Live grep
     vim.keymap.set("n", "<leader>fg", function()
       live_grep_git_root({})
-    end, { desc = "Telescope: Live grep (repo root, optimized)", silent = true })
+    end, { desc = "Live grep", silent = true })
 
-    -- Grep string (normal mode: word under cursor / prompt editable)
+    -- Grep string
     vim.keymap.set("n", "<leader>fs", function()
       grep_string_git_root({})
-    end, { desc = "Telescope: Grep string (repo root, optimized)", silent = true })
+    end, { desc = "Grep string", silent = true })
 
-    -- Grep string (visual mode: use selection)
     vim.keymap.set("v", "<leader>fs", function()
       local text = get_visual_selection()
       grep_string_git_root({ search = text ~= "" and text or nil })
-    end, { desc = "Telescope: Grep selection (repo root, optimized)", silent = true })
+    end, { desc = "Grep selection", silent = true })
+
+    -- Old files
+    vim.keymap.set("n", "<leader>fr", function()
+      builtin.oldfiles()
+    end, { desc = "Old files", silent = true })
   end,
 }
 

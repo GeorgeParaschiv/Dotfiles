@@ -10,9 +10,9 @@ return {
       animation = false,
       clickable = true,
 
-      maximum_padding = 4,   -- default 1
-      minimum_padding = 2,   -- default 1
-      minimum_length  = 14,  -- ensure a wider minimum tab
+      maximum_padding = 4,
+      minimum_padding = 2,
+      minimum_length  = 14,
       maximum_length  = 30,
 
       icons = {
@@ -21,7 +21,7 @@ return {
           [vim.diagnostic.severity.ERROR] = { enabled = true },
           [vim.diagnostic.severity.WARN]  = { enabled = true },
         },
-        buffer_index = true,  
+        buffer_index = true,
         current = { buffer_index = true },
       },
 
@@ -29,9 +29,9 @@ return {
     })
 
     local map = vim.keymap.set
-    map("n", "<Tab>",     "<Cmd>BufferNext<CR>",     { desc = "Next buffer" })
-    map("n", "<S-Tab>",   "<Cmd>BufferPrevious<CR>", { desc = "Prev buffer" })
-    map("n", "<leader>bc","<Cmd>BufferClose<CR>",    { desc = "Close buffer" })
+    map("n", "<Tab>",     "<Cmd>BufferNext<CR>",     { desc = "Next" })
+    map("n", "<S-Tab>",   "<Cmd>BufferPrevious<CR>", { desc = "Prev" })
+    map("n", "<leader>bc","<Cmd>BufferClose<CR>",    { desc = "Close" })
   end,
 }
 

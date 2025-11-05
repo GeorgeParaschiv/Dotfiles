@@ -1,4 +1,3 @@
--- nvim/lua/plugins/lsp.lua
 return {
   {
     "neovim/nvim-lspconfig",
@@ -15,7 +14,6 @@ return {
       end
       local capabilities = cmp_nvim_lsp_ok and cmp_nvim_lsp.default_capabilities() or vim.lsp.protocol.make_client_capabilities()
 
-      -- de-dupe duplicate definition results
       do
         local def = vim.lsp.handlers["textDocument/definition"]
         vim.lsp.handlers["textDocument/definition"] = function(err, result, ctx, conf)
@@ -37,24 +35,14 @@ return {
         end
       end
 
-      -- Check for npm availability (required for some language servers)
-      local npm_available = vim.fn.executable("npm") == 1
-      if not npm_available then
-        vim.notify(
-          "npm not found in PATH. Some language servers (vue_ls, bashls, jsonls, pyright) require npm to install.\n" ..
-          "Install Node.js and npm: https://nodejs.org/ or run: nvim/install.sh",
-          vim.log.levels.WARN
-        )
-      end
-
       require("mason").setup({})
       require("mason-lspconfig").setup({
         ensure_installed = {
           "lua_ls",
-          "vue_ls",   -- Vue (aka Volar)
+          "vue_ls",
           "bashls",
           "jsonls",
-          "tsserver",    -- TypeScript/JS
+          "ts_ls",
           "clangd",
           "pyright",
         },
@@ -83,7 +71,7 @@ return {
             })
           end,
 
-          tsserver = function()
+          ts_ls = function()
             lspconfig.tsserver.setup({
               capabilities = capabilities,
               filetypes = { "javascript", "javascriptreact", "typescript", "typescriptreact" },

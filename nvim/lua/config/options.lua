@@ -1,7 +1,6 @@
 vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
 
--- UI/terminal color
 vim.o.termguicolors = true
 
 vim.opt.mouse = "a"

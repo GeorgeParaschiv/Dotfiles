@@ -9,9 +9,9 @@ map("n", "<leader>ln", function()
     wo.number = true
     wo.relativenumber = true
   end
-end, { desc = "Toggle hybrid line numbers on/off" })
+end, { desc = "Toggle line numbers" })
 
-map("n", "<leader>cf", ":%y+<CR>", { desc = "Copy entire file to system clipboard (+)" })
+map("n", "<leader>cf", ":%y+<CR>", { desc = "Copy file to clipboard" })
 
 map("v", "<C-c>", function()
   -- Yank the visual selection to register "z"
@@ -21,25 +21,24 @@ map("v", "<C-c>", function()
     return
   end
   
-  -- Try WSL clipboard integration first (clip.exe), then fallback to Linux clipboard tools
+  -- Copy to clipboard
   local cmd
   if vim.fn.executable("clip.exe") == 1 then
-    -- WSL: use Windows clipboard
+    -- WSL
     cmd = { "clip.exe" }
   elseif vim.fn.executable("wl-copy") == 1 then
-    -- Wayland: use wl-copy
+    -- Wayland
     cmd = { "wl-copy" }
   elseif vim.fn.executable("xclip") == 1 then
-    -- X11: use xclip
+    -- X11
     cmd = { "xclip", "-selection", "clipboard" }
   else
     vim.notify("No clipboard tool found. Install clip.exe (WSL), wl-copy (Wayland), or xclip (X11)", vim.log.levels.WARN)
     return
   end
   
-  -- Execute clipboard command with text as stdin
   vim.fn.system(cmd, text)
   if vim.v.shell_error ~= 0 then
     vim.notify("Failed to copy to clipboard (exit code: " .. vim.v.shell_error .. ")", vim.log.levels.ERROR)
   end
-end, { noremap = true, silent = true, desc = "Copy selection to system clipboard" })
+end, { noremap = true, silent = true, desc = "Copy to clipboard" })

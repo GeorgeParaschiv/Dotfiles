@@ -1,6 +1,6 @@
 return {
   "EdenEast/nightfox.nvim",
-  priority = 1000, -- ensure it loads early
+  priority = 1000,
   config = function()
     local ok, _ = pcall(vim.cmd, "colorscheme carbonfox")
     if not ok then

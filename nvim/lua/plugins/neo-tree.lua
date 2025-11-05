@@ -1,27 +1,23 @@
--- lua/plugins/neo-tree.lua
 return {
   "nvim-neo-tree/neo-tree.nvim",
   branch = "v3.x",
   dependencies = {
     "nvim-lua/plenary.nvim",
-    "nvim-tree/nvim-web-devicons", -- optional but recommended
+    "nvim-tree/nvim-web-devicons",
     "MunifTanjim/nui.nvim",
-    -- optional: better window picking when opening files from the tree
     { "s1n7ax/nvim-window-picker", opts = { hint = "floating-big-letter" } },
   },
   init = function()
-    -- recommended by neo-tree when hijacking netrw
     vim.g.loaded_netrw = 1
     vim.g.loaded_netrwPlugin = 1
   end,
   keys = {
-    { "<leader>e", "<cmd>Neotree toggle<cr>", desc = "Toggle file explorer" },
-    { "<leader>E", "<cmd>Neotree reveal<cr>", desc = "Reveal current file" },
+    { "<leader>e", "<cmd>Neotree toggle<cr>", desc = "Toggle explorer" },
+    { "<leader>E", "<cmd>Neotree reveal<cr>", desc = "Reveal file" },
   },
   opts = {
     close_if_last_window = true,
     popup_border_style = "rounded",
-    -- keep it simple; don't touch global statusline/winbar
     enable_git_status = true,
     enable_diagnostics = true,
     default_component_configs = {
@@ -54,9 +50,7 @@ return {
   config = function(_, opts)
     require("neo-tree").setup(opts)
 
-    -- Open the explorer by default on startup (but don't steal a real file buffer)
     local function open_neotree_on_start()
-      -- Only open if we're in a directory or no file was provided
       if vim.fn.argc() == 0 then
         vim.cmd("Neotree show")
       else

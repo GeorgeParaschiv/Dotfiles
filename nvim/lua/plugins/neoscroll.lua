@@ -8,7 +8,6 @@ return {
     local ok, neoscroll = pcall(require, "neoscroll")
     if not ok then return end
 
-    -- Use new options; disable default mappings (we define our own)
     neoscroll.setup({
       mappings = {},
       easing = "quadratic",
@@ -18,17 +17,14 @@ return {
       stop_eof = true,
     })
 
-    -- Helper to map in normal/visual/select
     local modes = { "n", "v", "x" }
     local map = function(lhs, rhs, desc)
       vim.keymap.set(modes, lhs, rhs, { silent = true, desc = desc })
     end
 
-    -- Mouse wheel (cursor follows view: move_cursor = true)
     map("<ScrollWheelUp>",   function() neoscroll.scroll(-0.10, { move_cursor = true,  duration = 60  }) end, "neoscroll wheel up")
     map("<ScrollWheelDown>", function() neoscroll.scroll( 0.10, { move_cursor = true,  duration = 60  }) end, "neoscroll wheel down")
 
-    -- Keyboard equivalents (cursor moves by design in these helpers)
     map("<C-u>", function() neoscroll.ctrl_u({ duration = 250 }) end, "neoscroll <C-u>")
     map("<C-d>", function() neoscroll.ctrl_d({ duration = 250 }) end, "neoscroll <C-d>")
     map("<C-b>", function() neoscroll.ctrl_b({ duration = 400 }) end, "neoscroll <C-b>")
