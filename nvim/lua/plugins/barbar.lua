@@ -31,7 +31,7 @@ return {
     local map = vim.keymap.set
     map("n", "<Tab>",     "<Cmd>BufferNext<CR>",     { desc = "Next" })
     map("n", "<S-Tab>",   "<Cmd>BufferPrevious<CR>", { desc = "Prev" })
-    map("n", "<leader>bc","<Cmd>BufferClose<CR>",    { desc = "Close" })
+    map("n", "<leader>q","<Cmd>BufferClose<CR>",    { desc = "Close" })
   end,
 }
 
