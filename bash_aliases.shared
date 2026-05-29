@@ -1,0 +1,87 @@
+# Shared aliases and functions (WSL + lab machines)
+
+# Domain variables
+CORP=".peraso-corp.perasotech.com"
+LAB=".pv-lab.perasotech.com"
+
+# Remote lab server paths (used by pv/auto/rep/lssh)
+GEORGE_REMOTE_DIR="/home/lab/george_p"
+GEORGE_ALIASES_PATH="${GEORGE_REMOTE_DIR}/.bash_aliases"
+GEORGE_REMOTE_INIT="${GEORGE_REMOTE_DIR}/.bash_george_init"
+GEORGE_REMOTE_LOGIN="${GEORGE_REMOTE_DIR}/.bash_george_login"
+GEORGE_SHARED_ALIASES="${HOME}/.bash_aliases.shared"
+
+lssh() {
+	local host="$1"
+
+	if [[ -z "$host" ]]; then
+		echo "Usage: lssh hostname" >&2
+		return 1
+	fi
+
+	host="${host#lab@}"
+
+	if ssh -o BatchMode=yes -o ConnectTimeout=10 \
+		"lab@${host}" "test -x ${GEORGE_REMOTE_LOGIN}" 2>/dev/null; then
+		command ssh -t \
+			-o ServerAliveInterval=60 \
+			-o ServerAliveCountMax=3 \
+			"lab@${host}" "${GEORGE_REMOTE_LOGIN}"
+	else
+		command ssh -t \
+			-o ServerAliveInterval=60 \
+			-o ServerAliveCountMax=3 \
+			"lab@${host}" /bin/bash -i
+	fi
+}
+
+alias cls='clear'
+alias v='nvim'
+alias vi='nvim'
+alias nv='nvim'
+
+unalias grep 2>/dev/null
+grep() {
+	if command -v rg >/dev/null 2>&1; then
+		rg --color=auto "$@"
+	else
+		command grep --color=auto "$@"
+	fi
+}
+
+alias ls='ls --color=auto'
+alias ll='ls -lav --ignore=..'   # show long listing of all except ".."
+alias la='ls -a --ignore=..'   # show listing of all except ".."
+alias l='ls -a --ignore=..'
+
+alias tm="tmux -2 attach-session || tmux -2 new-session"
+
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+alias .....='cd ../../../..'
+
+alias st='git status'
+alias co='git checkout -b'
+
+rep() {
+	lssh "repeater-3${CORP}"
+}
+
+pv() {
+  local host_num="${1:-49}"
+  lssh "pv-host${host_num}"
+}
+
+auto() {
+  local host_num="${1:-140}"
+  local domain=""
+  if [ "$host_num" == "140" ]; then
+    domain="${CORP}"
+  fi
+  lssh "automation-${host_num}${domain}"
+}
+
+serial() {
+  sudo minicom -D /dev/ttyACM$1 -b 115200
+}

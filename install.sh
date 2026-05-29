@@ -19,6 +19,9 @@ echo "Log file: $LOG_FILE"
 echo "Symlinking bash_aliases to $HOME/.bash_aliases"
 ln -sf "$DOTFILES_DIR/bash_aliases" "$HOME_DIR/.bash_aliases" >> "$LOG_FILE" 2>&1
 
+echo "Symlinking bash_aliases.shared to $HOME/.bash_aliases.shared"
+ln -sf "$DOTFILES_DIR/bash_aliases.shared" "$HOME_DIR/.bash_aliases.shared" >> "$LOG_FILE" 2>&1
+
 # Install tools
 for tool in tmux nvim; do
     TOOL_INSTALLER="$DOTFILES_DIR/$tool/install.sh"
