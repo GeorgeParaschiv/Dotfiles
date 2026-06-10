@@ -1,19 +1,41 @@
 # WSL/local-only aliases and functions
 [[ -r "${HOME}/.bash_aliases.shared" ]] && . "${HOME}/.bash_aliases.shared"
 
-setup() {
+_install_lab_key() {
 	local server="$1"
+	local key="${2:-$HOME/.ssh/id_rsa.pub}"
 
-	if [ -z "$server" ]; then
-		echo "Error: No server provided"
+	if [[ ! -r "$key" ]]; then
+		echo "Error: public key not found: ${key}" >&2
 		return 1
 	fi
 
-	if [[ ! -r "$GEORGE_SHARED_ALIASES" ]]; then
-		echo "Error: Shared aliases file not found at ${GEORGE_SHARED_ALIASES}" >&2
+	ssh-copy-id -i "$key" "lab@${server}"
+}
+
+_install_nxp_key() {
+	local host="$1"
+	local key="${2:-$HOME/.ssh/id_rsa.pub}"
+
+	if [[ ! -r "$key" ]]; then
+		echo "Error: public key not found: ${key}" >&2
 		return 1
 	fi
 
+	if cat "$key" | ssh "root@${host}" \
+		'mkdir -p /etc/dropbear
+		 touch /etc/dropbear/authorized_keys
+		 grep -qF "$(cat)" /etc/dropbear/authorized_keys 2>/dev/null'; then
+		echo "SSH key already installed on root@${host}"
+		return 0
+	fi
+
+	cat "$key" | ssh "root@${host}" \
+		'mkdir -p /etc/dropbear && cat >> /etc/dropbear/authorized_keys && chmod 700 /etc/dropbear && chmod 600 /etc/dropbear/authorized_keys'
+}
+
+_setup_lab() {
+	local server="$1"
 	local setup_dir="${2:-$GEORGE_REMOTE_DIR}"
 	local aliases_path="${setup_dir}/.bash_aliases"
 	local init_path="${setup_dir}/.bash_george_init"
@@ -43,6 +65,41 @@ EOF
 	ssh "lab@${server}" "sed -i '/# Load George Custom Aliases/,/^fi\$/d' ~/.bashrc 2>/dev/null"
 }
 
+setup() {
+	local server="$1"
+	local host="${server%%.*}"
+
+	if [[ -z "$server" ]]; then
+		echo "Usage: setup <hostname>" >&2
+		return 1
+	fi
+
+	case "$host" in
+	sw-nxp-n*)
+		echo "Installing SSH key on NXP: root@${host}"
+		_install_nxp_key "$host" || return 1
+		;;
+	pv-host*|automation-*|repeater-*)
+		echo "Installing SSH key on lab: lab@${server}"
+		_install_lab_key "$server" || return 1
+
+		if [[ ! -r "$GEORGE_SHARED_ALIASES" ]]; then
+			echo "Error: Shared aliases file not found at ${GEORGE_SHARED_ALIASES}" >&2
+			return 1
+		fi
+
+		echo "Deploying aliases to lab@${server}"
+		_setup_lab "$server" || return 1
+		;;
+	*)
+		echo "Error: Unrecognized host '${host}'" >&2
+		echo "  Lab: pv-host*, automation-*, repeater-*" >&2
+		echo "  NXP: sw-nxp-n*" >&2
+		return 1
+		;;
+	esac
+}
+
 setupbash() {
 	setup "pv-host49${CORP}" || return 1
 	setup "automation-140${CORP}" || return 1
@@ -66,12 +123,100 @@ cldiff() {
   echo "Saved to ${OUT}"
 }
 
+alias downloads='cd /mnt/c/Users/gparaschiv.PERASO-CORP/Downloads'
 alias pf='cd /mnt/c/Perforce'
 alias cddr='cd /mnt/c/Perforce/gpara_device_drivers/components/drivers/network/Makefiles'
 alias cdwpa='cd /mnt/c/Perforce/gpara_wpa_supplicant/components'
 
 alias esp="ssh root@esp2305${CORP}"
-alias nxp="ssh -t root@sw-ap-nxp01"
+
+
+NXP_N="${NXP_N:-5}"
+
+_nxp_host() {
+	local n="${1:-$NXP_N}"
+	echo "root@sw-nxp-n${n}"
+}
+
+nxpdefault() {
+	NXP_N="$1"
+	export NXP_N
+	echo "NXP default: sw-nxp-n${NXP_N}"
+}
+
+nxp() {
+	local n="${1:-$NXP_N}"
+	ssh -t "$(_nxp_host "$n")"
+}
+
+nxplist() {
+	local n="${1:-$NXP_N}"
+	ssh "$(_nxp_host "$n")" 'first=1
+_lookup_product() {
+  case "$1" in
+    2932:01ca) echo "PER095 USB Connection Exerciser" ;;
+  esac
+}
+
+for t in /sys/class/tty/ttyACM*; do
+  [ -d "$t" ] || continue
+  dev="/dev/${t##*/}"
+  iface=$(readlink -f "$t/device")
+  usb=$(dirname "$iface")
+  port=$(basename "$usb")
+  ifnum=$(printf "%02d" "$(cat "$iface/bInterfaceNumber" 2>/dev/null | tr -d "\n\r")" 2>/dev/null || echo "00")
+
+  m=$(cat "$usb/manufacturer" 2>/dev/null | tr -d "\n\r")
+  pr=$(cat "$usb/product" 2>/dev/null | tr -d "\n\r")
+  v=$(cat "$usb/idVendor" 2>/dev/null | tr -d "\n\r")
+  p=$(cat "$usb/idProduct" 2>/dev/null | tr -d "\n\r")
+
+  [ -z "$pr" ] && pr=$(_lookup_product "${v}:${p}")
+
+  if [ -n "$m" ] && [ -n "$pr" ]; then
+    id="usb-$(echo "${m}_${pr}" | tr " " "_")-${port}-if${ifnum}"
+    desc="$m $pr"
+  elif [ -n "$v" ] && [ -n "$p" ]; then
+    id="usb-${v}_${p}-${port}-if${ifnum}"
+    desc="${v}:${p}"
+  else
+    id="usb-${port}-if${ifnum}"
+    desc="—"
+  fi
+
+  [ "$first" -eq 0 ] && echo
+  first=0
+  echo "$dev"
+  echo "├── ID: $id"
+  echo "└── DESC:  $desc"
+done'
+}
+
+nxppico() {
+	local n dev
+	if [[ $# -ge 2 ]]; then
+		n="$1"
+		dev="$2"
+	else
+		n="$NXP_N"
+		dev="${1:-0}"
+	fi
+	ssh -t "$(_nxp_host "$n")" \
+		picocom -b 115200 --echo --imap lfcrlf --omap crcrlf "/dev/ttyACM${dev}"
+}
+
+nxppicocr() {
+	local n dev
+	if [[ $# -ge 2 ]]; then
+		n="$1"
+		dev="$2"
+	else
+		n="$NXP_N"
+		dev="${1:-0}"
+	fi
+	ssh -t "$(_nxp_host "$n")" \
+		picocom -b 115200 --echo --imap lfcr "/dev/ttyACM${dev}"
+}
 
 alias cpyvue="scp ~/george_p/openwrt_2305/dune/bin/packages/aarch64_cortex-a53/peraso_ui/prs-vue-ui_1.0.0-r1_all.ipk root@esp2305${CORP}:"
 
@@ -193,9 +338,13 @@ fw() {
   local SERIES="pro"
   local RADIO="rfc"
   local BBID="prs4601"
+  local DO_CLEAN=0
 
   for arg in "$@"; do
     case "$arg" in
+      clean)
+        DO_CLEAN=1
+        ;;
       pro|dune|infra|wlan|avatar|navi|insight|velo)
         SERIES="$arg"
         ;;
@@ -215,9 +364,16 @@ fw() {
     esac
   done
 
+  cd "$FW_DIR" || return 1
+
+  if (( DO_CLEAN )); then
+    make clean
+    echo "Cleaned: $FW_DIR"
+    return
+  fi
+
   local TARGET="${SERIES}_${RADIO}_${BBID}"
 
-  cd "$FW_DIR" || return 1
   make -j"$JOBS" "$TARGET"
   echo "Built: $FW_DIR/targets/debug/image_${TARGET}.bin"
 }

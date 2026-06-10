@@ -82,6 +82,86 @@ auto() {
   lssh "automation-${host_num}${domain}"
 }
 
+_serial_device_info() {
+  local dev="$1"
+  local by_id desc=""
+
+  for link in /dev/serial/by-id/*; do
+    [[ -L "$link" ]] || continue
+    [[ "$(readlink -f "$link")" == "$dev" ]] || continue
+    by_id=$(basename "$link")
+    break
+  done
+
+  if command -v udevadm >/dev/null 2>&1; then
+    desc=$(udevadm info -q property -n "$dev" 2>/dev/null \
+      | awk -F= '
+        /^ID_VENDOR=/ { vendor=$2 }
+        /^ID_MODEL=/ { model=$2 }
+        /^ID_SERIAL_SHORT=/ { serial=$2 }
+        END {
+          gsub(/_/, " ", vendor); gsub(/_/, " ", model)
+          if (vendor != "" || model != "") {
+            printf "%s %s", vendor, model
+            if (serial != "") printf " (sn: %s)", serial
+          }
+        }')
+  fi
+
+  echo "$dev"
+  echo "├── ID: ${by_id:-—}"
+  echo "└── DESC:  ${desc:-—}"
+}
+
+serial_list() {
+  local devs=(/dev/ttyACM*)
+  shopt -s nullglob
+
+  if ((${#devs[@]} == 0)); then
+    echo "No /dev/ttyACM* devices found." >&2
+    return 1
+  fi
+
+  local i dev
+  for i in "${!devs[@]}"; do
+    [[ $i -gt 0 ]] && echo
+    _serial_device_info "${devs[$i]}"
+  done
+}
+
 serial() {
-  sudo minicom -D /dev/ttyACM$1 -b 115200
+  local baud=115200
+
+  if [[ -z "$1" || "$1" == "-l" || "$1" == "list" ]]; then
+    serial_list
+    return $?
+  fi
+
+  if [[ "$1" == "info" ]]; then
+    local dev="/dev/ttyACM${2:-}"
+    if [[ -z "$2" ]]; then
+      serial_list
+      return $?
+    fi
+    if [[ ! -e "$dev" ]]; then
+      echo "Device not found: $dev" >&2
+      serial_list
+      return 1
+    fi
+    _serial_device_info "$dev"
+    if command -v udevadm >/dev/null 2>&1; then
+      echo
+      udevadm info -n "$dev"
+    fi
+    return 0
+  fi
+
+  local dev="/dev/ttyACM$1"
+  if [[ ! -e "$dev" ]]; then
+    echo "Device not found: $dev" >&2
+    serial_list
+    return 1
+  fi
+
+  sudo minicom -D "$dev" -b "$baud"
 }
