@@ -114,11 +114,58 @@ p4() {
 }
 
 cldiff() {
-  CL="$1"
-  OUT="/mnt/c/Users/gparaschiv.PERASO-CORP/Downloads/cl_${CL}.diff"
+  local CL="$1"
+  local OUT_DIR="/mnt/c/Users/gparaschiv.PERASO-CORP/Documents/Changelist Diffs"
+  local CHANGE_SPEC STATUS DESC SLUG OUT P4CLIENT OPENED
 
-  p4 shelve -f -c "$CL"
-  p4 describe -S -duw "$CL" > "$OUT"
+  if [[ -z "$CL" ]]; then
+    echo "Usage: cldiff <changelist>"
+    return 1
+  fi
+
+  if ! CHANGE_SPEC=$(p4 change -o "$CL" 2>/dev/null | tr -d '\r'); then
+    echo "No changelist $CL exists."
+    return 1
+  fi
+  if [[ -z "$CHANGE_SPEC" ]]; then
+    echo "No changelist $CL exists."
+    return 1
+  fi
+
+  STATUS=$(printf '%s\n' "$CHANGE_SPEC" | sed -n 's/^Status:[[:space:]]*//p')
+  DESC=$(printf '%s\n' "$CHANGE_SPEC" | sed -n '/^Description:/{n;s/^\t//;s/[[:space:]]*$//;p;q}')
+  SLUG=$(printf '%s' "$DESC" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed -e 's/^-//' -e 's/-$//' -e 's/-\{1,\}/-/g' | cut -c1-40)
+  if [[ -n "$SLUG" ]]; then
+    OUT="${OUT_DIR}/${CL}_${STATUS}_${SLUG}.diff"
+  else
+    OUT="${OUT_DIR}/${CL}_${STATUS}.diff"
+  fi
+
+  echo "Changelist $CL: $STATUS"
+
+  case "$STATUS" in
+    submitted)
+      p4 describe -duw "$CL" > "$OUT"
+      ;;
+    pending)
+      P4CLIENT=$(p4 info 2>/dev/null | tr -d '\r' | sed -n 's/^Client name:[[:space:]]*//p')
+      OPENED=$(p4 opened -c "$CL" -C "$P4CLIENT" 2>/dev/null)
+      if [[ -n "$OPENED" ]]; then
+        echo "Using workspace diff (open files in $P4CLIENT; no shelve)."
+        printf '%s\n' "$OPENED" | sed -e 's/#.*//' | p4 -x - diff -duw > "$OUT"
+      elif p4 describe -sS "$CL" 2>/dev/null | grep -qE '^\.\.\. '; then
+        echo "Using shelf diff (no open files in your workspace)."
+        p4 describe -S -duw "$CL" > "$OUT"
+      else
+        echo "Pending changelist $CL has no open files in your workspace and no shelf."
+        return 1
+      fi
+      ;;
+    *)
+      echo "Unexpected changelist status: $STATUS"
+      return 1
+      ;;
+  esac
 
   echo "Saved to ${OUT}"
 }
@@ -331,65 +378,148 @@ driver() {
 	python2.7 linux_build.py --platform "$platform" --output "${platform}_build" --makearg=PRS_SVN_REVISION=000000 --cleandir --prs_debug -v
 }
 
-fw() {
-  local FW_DIR="/mnt/c/Perforce/gpara_trunk/components/firmware"
-  local JOBS="${JOBS:-4}"
+_fw_report_sizes() {
+  local fw_dir=$1 target=$2 radio=$3
+  local sw_root awk umac_map lmac_map
 
-  local SERIES="pro"
-  local RADIO="rfc"
-  local BBID="prs4601"
-  local DO_CLEAN=0
+  sw_root="$(dirname "$(dirname "$fw_dir")")"
+  awk="${sw_root}/utility/bin/post-process-map-firmware-size.awk"
+  umac_map="${fw_dir}/build/uppermac/umac_${target}.map"
+  lmac_map="${fw_dir}/build/lowermac/lmac_${target}.map"
+
+  if [[ ! -f "$awk" ]]; then
+    echo "Warning: awk script not found: $awk" >&2
+    return 1
+  fi
+  if [[ ! -f "$umac_map" || ! -f "$lmac_map" ]]; then
+    echo "Warning: map files not found for ${target} (build it first)" >&2
+    return 1
+  fi
+
+  echo
+  echo "Radio ${radio} sizes as computed by post-process-map-firmware-size.awk:"
+  echo
+  gawk -f "$awk" -v BUILD="$target" -v MAC="umac" "$umac_map"
+  gawk -f "$awk" -v BUILD="$target" -v MAC="lmac" "$lmac_map"
+}
+
+_fw_resolve_target() {
+  # Sets stream/series/radio/bbid/fw_dir/target via namerefs; returns 1 on error.
+  local -n _stream=$1 _series=$2 _radio=$3 _bbid=$4 _fw_dir=$5 _target=$6
+  local p4_base="/mnt/c/Perforce"
+  shift 6
+
+  _stream="trunk"
+  _series="pro"
+  _radio="rfc"
+  _bbid="prs4601"
 
   for arg in "$@"; do
     case "$arg" in
-      clean)
-        DO_CLEAN=1
+      trunk|81|631)
+        _stream="$arg"
         ;;
       pro|dune|infra|wlan|avatar|navi|insight|velo)
-        SERIES="$arg"
+        _series="$arg"
         ;;
       rfc|spw|spwA|qtz)
-        RADIO="$arg"
+        _radio="$arg"
         ;;
       4601|prs4601)
-        BBID="prs4601"
+        _bbid="prs4601"
         ;;
       4001|prs4001)
-        BBID="prs4001"
+        _bbid="prs4001"
+        ;;
+      clean)
         ;;
       *)
-        echo "Unknown option: $arg"
+        echo "Unknown option: $arg" >&2
         return 1
         ;;
     esac
   done
 
+  case "$_stream" in
+    trunk) _fw_dir="${p4_base}/gpara_trunk/components/firmware" ;;
+    81)    _fw_dir="${p4_base}/gpara_fw_81/components/firmware" ;;
+    631)   _fw_dir="${p4_base}/gpara_fw_631/components/firmware" ;;
+  esac
+
+  if [[ ! -d "$_fw_dir" ]]; then
+    echo "Firmware tree not found: $_fw_dir" >&2
+    return 1
+  fi
+
+  case "$_stream" in
+    81)
+      if [[ "$_series" == "insight" ]]; then
+        echo "Series '$_series' is not supported on stream 81" >&2
+        return 1
+      fi
+      ;;
+    631)
+      if [[ "$_series" == "dune" || "$_series" == "insight" ]]; then
+        echo "Series '$_series' is not supported on stream 631" >&2
+        return 1
+      fi
+      if [[ "$_radio" == "spwA" ]]; then
+        echo "Radio '$_radio' is not supported on stream 631" >&2
+        return 1
+      fi
+      ;;
+  esac
+
+  _target="${_series}_${_radio}_${_bbid}"
+
+  if ! grep -q "^${_target}:" "$_fw_dir/makefile"; then
+    echo "Unknown target for ${_stream} stream: $_target" >&2
+    return 1
+  fi
+}
+
+fwsizes() {
+  local STREAM SERIES RADIO BBID FW_DIR TARGET
+
+  _fw_resolve_target STREAM SERIES RADIO BBID FW_DIR TARGET "$@" || return 1
+  _fw_report_sizes "$FW_DIR" "$TARGET" "$RADIO"
+}
+
+fw() {
+  local STREAM SERIES RADIO BBID FW_DIR TARGET
+  local JOBS="${JOBS:-4}"
+  local DO_CLEAN=0 IMAGE OUT_DIR
+
+  for arg in "$@"; do
+    [[ "$arg" == clean ]] && DO_CLEAN=1
+  done
+
+  _fw_resolve_target STREAM SERIES RADIO BBID FW_DIR TARGET "$@" || return 1
+
   cd "$FW_DIR" || return 1
 
   if (( DO_CLEAN )); then
     make clean
+    OUT_DIR="${HOME}/builds/fw/${STREAM}"
+    if [[ -d "$OUT_DIR" ]]; then
+      rm -rf "$OUT_DIR"
+      echo "Removed: $OUT_DIR"
+    fi
+    mkdir -p "$OUT_DIR"
     echo "Cleaned: $FW_DIR"
+    cd "$OUT_DIR" || return 1
     return
   fi
 
-  local TARGET="${SERIES}_${RADIO}_${BBID}"
+  make -j"$JOBS" "$TARGET" || return 1
 
-  make -j"$JOBS" "$TARGET"
-  echo "Built: $FW_DIR/targets/debug/image_${TARGET}.bin"
-}
+  _fw_report_sizes "$FW_DIR" "$TARGET" "$RADIO" || true
 
-compile() {
-	local function="$1"
-	local platform="$2"
-
-	if ! declare -f "$function" > /dev/null; then
-		echo "Error: Function '$function' not found." >&2
-		return 1
-	fi
-
-	if [[ "$function" == "driver" ]]; then
-		"$function" "$platform"
-	else
-		"$function"
-	fi
+  IMAGE="${FW_DIR}/targets/debug/${TARGET}.bin"
+  OUT_DIR="${HOME}/builds/fw/${STREAM}"
+  mkdir -p "$OUT_DIR"
+  cp -f "$IMAGE" "${OUT_DIR}/" || return 1
+  echo "Built: $IMAGE"
+  echo "Copied: ${OUT_DIR}/${TARGET}.bin"
+  cd "$OUT_DIR" || return 1
 }
