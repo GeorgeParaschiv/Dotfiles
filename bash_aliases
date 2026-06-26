@@ -403,39 +403,68 @@ _fw_report_sizes() {
   gawk -f "$awk" -v BUILD="$target" -v MAC="lmac" "$lmac_map"
 }
 
+_fw_in_list() {
+  local needle=$1; shift
+  local item
+  for item in "$@"; do
+    [[ "$item" == "$needle" ]] && return 0
+  done
+  return 1
+}
+
+_fw_normalize_bbid() {
+  local arg=$1
+  if [[ "$arg" =~ ^prs[0-9]+$ ]]; then
+    printf '%s' "$arg"
+  elif [[ "$arg" =~ ^[0-9]+$ ]]; then
+    printf 'prs%s' "$arg"
+  else
+    return 1
+  fi
+}
+
+_fw_load_catalog() {
+  local fw_dir=$1
+  local -n _targets=$2 _series_list=$3 _radio_list=$4 _bbid_list=$5
+  local target series radio bbid
+
+  _targets=()
+  _series_list=()
+  _radio_list=()
+  _bbid_list=()
+
+  while IFS= read -r target; do
+    [[ -z "$target" ]] && continue
+    _targets+=("$target")
+    if [[ "$target" =~ ^(.+)_(rfc|spw|spwA|qtz)_(prs[0-9]+)$ ]]; then
+      series="${BASH_REMATCH[1]}"
+      radio="${BASH_REMATCH[2]}"
+      bbid="${BASH_REMATCH[3]}"
+      _fw_in_list "$series" "${_series_list[@]}" || _series_list+=("$series")
+      _fw_in_list "$radio" "${_radio_list[@]}" || _radio_list+=("$radio")
+      _fw_in_list "$bbid" "${_bbid_list[@]}" || _bbid_list+=("$bbid")
+    fi
+  done < <(command grep -E '^[a-zA-Z0-9_]+_prs[0-9]+:' "$fw_dir/makefile" | sed 's/:.*//')
+
+  if ((${#_targets[@]} == 0)); then
+    echo "No firmware targets found in ${fw_dir}/makefile" >&2
+    return 1
+  fi
+}
+
 _fw_resolve_target() {
   # Sets stream/series/radio/bbid/fw_dir/target via namerefs; returns 1 on error.
   local -n _stream=$1 _series=$2 _radio=$3 _bbid=$4 _fw_dir=$5 _target=$6
   local p4_base="/mnt/c/Perforce"
+  local arg normalized
+  local -a valid_targets valid_series valid_radios valid_bbids
   shift 6
 
   _stream="trunk"
-  _series="pro"
-  _radio="rfc"
-  _bbid="prs4601"
-
   for arg in "$@"; do
     case "$arg" in
       trunk|81|631)
         _stream="$arg"
-        ;;
-      pro|dune|infra|wlan|avatar|navi|insight|velo)
-        _series="$arg"
-        ;;
-      rfc|spw|spwA|qtz)
-        _radio="$arg"
-        ;;
-      4601|prs4601)
-        _bbid="prs4601"
-        ;;
-      4001|prs4001)
-        _bbid="prs4001"
-        ;;
-      clean)
-        ;;
-      *)
-        echo "Unknown option: $arg" >&2
-        return 1
         ;;
     esac
   done
@@ -451,29 +480,47 @@ _fw_resolve_target() {
     return 1
   fi
 
-  case "$_stream" in
-    81)
-      if [[ "$_series" == "insight" ]]; then
-        echo "Series '$_series' is not supported on stream 81" >&2
-        return 1
-      fi
-      ;;
-    631)
-      if [[ "$_series" == "dune" || "$_series" == "insight" ]]; then
-        echo "Series '$_series' is not supported on stream 631" >&2
-        return 1
-      fi
-      if [[ "$_radio" == "spwA" ]]; then
-        echo "Radio '$_radio' is not supported on stream 631" >&2
-        return 1
-      fi
-      ;;
-  esac
+  _fw_load_catalog "$_fw_dir" valid_targets valid_series valid_radios valid_bbids || return 1
+
+  _series="pro"
+  _radio="rfc"
+  _bbid="prs4601"
+
+  for arg in "$@"; do
+    case "$arg" in
+      trunk|81|631|clean)
+        continue
+        ;;
+    esac
+
+    if _fw_in_list "$arg" "${valid_series[@]}"; then
+      _series="$arg"
+      continue
+    fi
+
+    if _fw_in_list "$arg" "${valid_radios[@]}"; then
+      _radio="$arg"
+      continue
+    fi
+
+    if normalized=$(_fw_normalize_bbid "$arg" 2>/dev/null) && _fw_in_list "$normalized" "${valid_bbids[@]}"; then
+      _bbid="$normalized"
+      continue
+    fi
+
+    echo "Unknown option: $arg" >&2
+    echo "Valid series (${_stream}): ${valid_series[*]}" >&2
+    echo "Valid radios (${_stream}): ${valid_radios[*]}" >&2
+    echo "Valid bbids (${_stream}): ${valid_bbids[*]}" >&2
+    return 1
+  done
 
   _target="${_series}_${_radio}_${_bbid}"
 
-  if ! grep -q "^${_target}:" "$_fw_dir/makefile"; then
+  if ! _fw_in_list "$_target" "${valid_targets[@]}"; then
     echo "Unknown target for ${_stream} stream: $_target" >&2
+    echo "Valid targets (${_stream}):" >&2
+    printf '  %s\n' "${valid_targets[@]}" >&2
     return 1
   fi
 }
